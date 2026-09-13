@@ -42,3 +42,22 @@
 - WebSocket lives in side panel page (lifetime = while user is editing). MV3 service worker stays thin (panel open, commands).
 - `CompanionClient` isolated so moving to offscreen document/service worker later is local.
 - Side panel: React 19 + Tailwind v4 + Zustand. TanStack Query skipped: request/response over WebSocket with broadcasts does not fit its cache model yet.
+
+## ADR-007 [2026-09-13] Firefox support via thin platform layer (no WXT)
+- Chrome API surface was ~20 call sites in 6 files; only `sidePanel` differs semantically. WXT migration rejected: rewrites build + entrypoints for no functional gain.
+- `src/platform/ext.ts`: `browser ?? chrome` promise namespace for shared code.
+- `src/platform/{chrome,firefox}.ts` implement `PlatformHost` (install panel host, open panel). Selected at build time via alias `@uihook/platform-host`; no runtime browser checks in product code.
+- `src/manifest.ts`: shared manifest + overrides. Chrome: `key`, `side_panel`, service worker. Firefox: `gecko.id`, `sidebar_action`, `background.scripts`, `_execute_sidebar_action`.
+- Output `dist/chrome`, `dist/firefox`. Same `sidepanel.html` for both hosts.
+- Companion unchanged except allowlist: exact `moz-extension://<uuid>` origins only; dev UUID pinned via `extensions.webextensions.uuids`.
+- Content script accepts messages only from extension documents (`sender.url` under `runtime.getURL("")`), replacing a `sender.tab` check that broke tab-hosted panels in Firefox.
+- E2E: one scenario, two drivers. Firefox uses stock Firefox + BiDi (app page) + RDP (add-on install and panel document).
+
+## ADR-008 [2026-09-13] Agents are local CLIs; login is the provider's own flow
+- No API keys or OAuth handled by UIHook. `detect()` asks the CLI (`claude auth status --json`, `codex login status`) or checks credential file existence (Gemini) without reading contents.
+- Login from panel spawns the adapter's fixed login argv; output relayed; only https URLs on provider hosts become links; optional code input goes to that process only. Gemini login is manual (interactive TUI).
+- Runs: fixed argv per adapter, prompt on stdin (Gemini: `-p`), cwd = project root, `UIHOOK_*` env removed, process-group kill on cancel/timeout.
+- Permission posture: Claude `acceptEdits` + file tools, shell/web denied; Codex `workspace-write` sandbox; Gemini `auto_edit`.
+- Transactions: agent edits unknown files -> snapshot (git ls-files or walk, project policy) before, diff after. Failed/cancelled runs with edits still produce an undoable session.
+- One active run; visual edits and undo return `busy` meanwhile.
+- Context engine prompt: user request trusted; page-derived text in a dynamically sized fence marked untrusted.

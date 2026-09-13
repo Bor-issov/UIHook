@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { EditConflictError, EditHistory, type FileAccess, GitClient, SessionStateError, summarize } from "./index.js";
+import { EditConflictError, EditHistory, type FileAccess, GitClient, SessionStateError, SnapshotTooLargeError, summarize } from "./index.js";
 
 class MemoryFiles implements FileAccess {
   constructor(readonly data = new Map<string, string>()) {}
@@ -127,5 +127,46 @@ describe("GitClient", () => {
     expect(session.baseline.head).toMatch(/^[0-9a-f]{40}$/);
     expect(session.changes[0]!.gitStatusBefore).toBe("  ");
     expect(await GitClient.detect(tmpdir())).toBeNull();
+  });
+});
+
+describe("SnapshotTransaction (agent edits)", () => {
+  const lister = (files: MemoryFiles) => ({ list: async () => [...files.data.keys()] });
+
+  it("records modified, created and deleted files and undoes all of them", async () => {
+    const files = new MemoryFiles(new Map([["src/Card.tsx", original], ["src/Old.tsx", "old\n"], ["src/Dirty.tsx", "user wip\n"]]));
+    const history = new EditHistory(files, null);
+    const tx = await history.beginSnapshot("denser card", lister(files));
+    expect(tx.fileCount).toBe(3);
+
+    files.data.set("src/Card.tsx", original.replace("p-6", "p-3"));
+    files.data.set("src/CardHeader.tsx", "export const H = 1;\n");
+    files.data.delete("src/Old.tsx");
+    const session = (await tx.commit())!;
+
+    expect(session.type).toBe("agent");
+    expect(session.changes.map((c) => [c.file, c.before === null, c.after === null])).toEqual([
+      ["src/Card.tsx", false, false],
+      ["src/CardHeader.tsx", true, false],
+      ["src/Old.tsx", false, true],
+    ]);
+    expect(summarize(session).patch).toContain("+++ b/src/CardHeader.tsx");
+
+    await history.undo(session.id);
+    expect(Object.fromEntries(files.data)).toEqual({ "src/Card.tsx": original, "src/Old.tsx": "old\n", "src/Dirty.tsx": "user wip\n" });
+  });
+
+  it("returns null when the agent changed nothing and ignores unreadable files", async () => {
+    const files = new MemoryFiles(new Map([["a.tsx", "a"]]));
+    const history = new EditHistory(files, null);
+    const tx = await history.beginSnapshot("noop", { list: async () => ["a.tsx", "missing.tsx"] });
+    expect(await tx.commit()).toBeNull();
+  });
+
+  it("refuses to start when the project exceeds snapshot limits", async () => {
+    const files = new MemoryFiles(new Map([["a.tsx", "x".repeat(100)], ["b.tsx", "y".repeat(100)]]));
+    const history = new EditHistory(files, null);
+    await expect(history.beginSnapshot("big", lister(files), { maxTotalBytes: 150, maxFiles: 10 })).rejects.toBeInstanceOf(SnapshotTooLargeError);
+    await expect(history.beginSnapshot("many", lister(files), { maxTotalBytes: 1e6, maxFiles: 1 })).rejects.toBeInstanceOf(SnapshotTooLargeError);
   });
 });

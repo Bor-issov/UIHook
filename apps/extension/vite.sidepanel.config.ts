@@ -9,9 +9,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { conditions: ["@uihook/source"] },
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist"),
     emptyOutDir: false,
     rollupOptions: { input: { sidepanel: path.resolve(import.meta.dirname, "src/sidepanel/sidepanel.html") } },
-    sourcemap: true,
   },
 });

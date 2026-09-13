@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
+import { ext } from "../../platform/ext";
 import { usePanel } from "../store";
 import { Button } from "./ui";
 
@@ -9,7 +10,7 @@ export function ConnectForm() {
   const [token, setToken] = useState("");
 
   useEffect(() => {
-    chrome.storage.local.get("companion").then(({ companion }) => {
+    ext.storage.local.get("companion").then(({ companion }) => {
       const saved = companion as { port?: number; token?: string } | undefined;
       if (saved?.port) setPort(String(saved.port));
       if (saved?.token) setToken(saved.token);

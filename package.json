@@ -13,13 +13,25 @@
     "dev:demo": "pnpm --filter react-vite-demo run dev",
     "test": "vitest run",
     "typecheck": "pnpm -r run typecheck",
-    "e2e": "node scripts/e2e.mjs",
+    "e2e": "node scripts/e2e/run.mjs",
     "check": "pnpm typecheck && pnpm test",
-    "dev:extension": "pnpm --filter @uihook/extension run watch"
+    "dev:extension": "pnpm --filter @uihook/extension watch:chrome",
+    "e2e:chrome": "node scripts/e2e/run.mjs --browser chromium",
+    "e2e:firefox": "node scripts/e2e/run.mjs --browser firefox",
+    "e2e:setup": "pnpm exec playwright install chromium && node scripts/e2e/test-browsers.mjs",
+    "dev:chrome": "node scripts/dev.mjs --browser chrome",
+    "dev:firefox": "node scripts/dev.mjs --browser firefox",
+    "build:chrome": "pnpm build:packages && pnpm --filter @uihook/extension build:chrome",
+    "build:firefox": "pnpm build:packages && pnpm --filter @uihook/extension build:firefox",
+    "package:chrome": "pnpm build:chrome && pnpm --filter @uihook/extension package:chrome",
+    "package:firefox": "pnpm build:firefox && pnpm --filter @uihook/extension lint:firefox && pnpm --filter @uihook/extension package:firefox",
+    "smoke:agent": "node scripts/agent-smoke.mjs"
   },
   "devDependencies": {
+    "@puppeteer/browsers": "^3.2.2",
     "@types/node": "^26.5.1",
     "playwright": "^1.63.0",
+    "puppeteer-core": "^25.10.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"

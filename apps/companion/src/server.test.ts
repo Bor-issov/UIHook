@@ -8,6 +8,7 @@ import { startCompanion } from "./app.js";
 import { silentLogger } from "./logger.js";
 
 const ORIGIN = "chrome-extension://dkaiipifgcpinbcifdkfgilclkjdmkom";
+const FIREFOX_ORIGIN = "moz-extension://9096d939-9e7f-4a10-b2e5-b2437dc0f17d";
 const TOKEN = "test-token-0123456789abcdef";
 const CARD = `export function Card() {\n  return (\n    <div className="flex p-6 gap-4">\n      <h2 className="text-lg">Budget</h2>\n    </div>\n  );\n}\n`;
 
@@ -27,7 +28,7 @@ beforeAll(async () => {
   mkdirSync(path.join(root, "src"));
   writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "demo", devDependencies: { vite: "^8", tailwindcss: "^4" } }));
   writeFileSync(path.join(root, "src/Card.tsx"), CARD);
-  const started = await startCompanion({ root, port: 0, token: TOKEN, allowedOrigins: [ORIGIN], logger: silentLogger });
+  const started = await startCompanion({ root, port: 0, token: TOKEN, allowedOrigins: [ORIGIN, FIREFOX_ORIGIN], logger: silentLogger });
   port = started.server.port;
   close = started.server.close;
 });
@@ -98,6 +99,17 @@ describe("connection security", () => {
   it("rejects foreign origins before the upgrade", async () => {
     await expect(Client.connect({ origin: "http://evil.example" })).rejects.toThrow("HTTP 403");
     await expect(Client.connect({ origin: "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" })).rejects.toThrow("HTTP 403");
+  });
+
+  it("rejects Firefox origins that were not explicitly allowlisted", async () => {
+    await expect(Client.connect({ origin: "moz-extension://00000000-0000-4000-8000-000000000000" })).rejects.toThrow("HTTP 403");
+  });
+
+  it("accepts an allowlisted Firefox extension origin", async () => {
+    const client = await Client.connect({ origin: FIREFOX_ORIGIN });
+    const ready = await client.request("session.hello", { token: TOKEN, client: "firefox" });
+    expect(ready.type).toBe("session.ready");
+    client.socket.close();
   });
 
   it("rejects non-loopback Host headers (DNS rebinding)", async () => {

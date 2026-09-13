@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
+import { DEFAULT_EXTENSION_ORIGINS, isValidExtensionOrigin } from "@uihook/protocol";
 import { startCompanion } from "./app.js";
 import { createLogger } from "./logger.js";
 import { generateToken } from "./server.js";
 
-/** ID of the development build of the extension, pinned by the `key` in its manifest. */
-const DEFAULT_EXTENSION_ID = "dkaiipifgcpinbcifdkfgilclkjdmkom";
 
 const { values } = parseArgs({
   options: {
     root: { type: "string", default: process.cwd() },
     port: { type: "string", default: "4317" },
     "extension-id": { type: "string", multiple: true },
+    "extension-origin": { type: "string", multiple: true },
     "token-file": { type: "string" },
     debug: { type: "boolean", default: false },
     json: { type: "boolean" },
@@ -20,7 +20,18 @@ const { values } = parseArgs({
 });
 
 const logger = createLogger({ debug: values.debug, ...(values.json !== undefined ? { json: values.json } : {}) });
-const extensionIds = values["extension-id"]?.length ? values["extension-id"] : [DEFAULT_EXTENSION_ID];
+// Defaults cover the pinned Chrome ID and the pinned Firefox dev UUID. Extra origins are added, never wildcarded.
+const extraOrigins = [
+  ...(values["extension-id"] ?? []).map((id) => `chrome-extension://${id}`),
+  ...(values["extension-origin"] ?? []),
+  ...(process.env.UIHOOK_EXTENSION_ORIGINS?.split(",").map((o) => o.trim()).filter(Boolean) ?? []),
+];
+const invalid = extraOrigins.filter((origin) => !isValidExtensionOrigin(origin));
+if (invalid.length > 0) {
+  logger.error("cli.invalid_extension_origin", { invalid, expected: "chrome-extension://<32 letters> or moz-extension://<uuid>" });
+  process.exit(1);
+}
+const allowedOrigins = [...new Set([...DEFAULT_EXTENSION_ORIGINS, ...extraOrigins])];
 const token = values["token-file"] ? readFileSync(values["token-file"], "utf8").trim() : (process.env.UIHOOK_TOKEN ?? generateToken());
 const port = Number(values.port);
 
@@ -34,7 +45,7 @@ try {
     root: values.root,
     port,
     token,
-    allowedOrigins: extensionIds.map((id) => `chrome-extension://${id}`),
+    allowedOrigins,
     logger,
   });
   logger.info("[v0.1] companion - listening", {
@@ -44,6 +55,7 @@ try {
     framework: services.project.framework,
     tailwind: services.project.tailwind,
     git: services.project.git,
+    origins: allowedOrigins,
   });
   process.stdout.write(`\n  Pair the extension with:\n\n    port   ${server.port}\n    token  ${token}\n\n`);
 

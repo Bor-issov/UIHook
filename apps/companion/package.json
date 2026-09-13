@@ -3,14 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": { "uihook": "./dist/cli.js" },
+  "bin": {
+    "uihook": "./dist/cli.js"
+  },
   "scripts": {
     "dev": "tsx --conditions=@uihook/source src/cli.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@uihook/agent-sdk": "workspace:*",
     "@uihook/ast-editor": "workspace:*",
+    "@uihook/context-engine": "workspace:*",
     "@uihook/git-engine": "workspace:*",
     "@uihook/protocol": "workspace:*",
     "ws": "^8.21.3"

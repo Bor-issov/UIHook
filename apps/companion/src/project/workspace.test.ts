@@ -53,3 +53,21 @@ describe("Workspace path confinement", () => {
     await expect(ws.write("../secret/keys.ts", "pwned")).rejects.toBeInstanceOf(ForbiddenPathError);
   });
 });
+
+describe("Workspace project policy", () => {
+  it("allows config and dotfiles but never env files, VCS or dependencies", async () => {
+    const base = mkdtempSync(path.join(tmpdir(), "uihook-proj-"));
+    mkdirSync(path.join(base, "src"));
+    writeFileSync(path.join(base, "package.json"), "{}");
+    writeFileSync(path.join(base, ".prettierrc"), "{}");
+    writeFileSync(path.join(base, ".env.local"), "S=1");
+    const project = await Workspace.open(base, "project");
+    expect(await project.read("package.json")).toBe("{}");
+    expect(await project.read(".prettierrc")).toBe("{}");
+    for (const file of [".env.local", ".env", "node_modules/x/index.js", ".git/config", "../x", "dist/index.js"]) {
+      await expect(project.read(file), file).rejects.toBeInstanceOf(ForbiddenPathError);
+    }
+    const source = await Workspace.open(base, "source");
+    await expect(source.read("package.json")).rejects.toBeInstanceOf(ForbiddenPathError);
+  });
+});
