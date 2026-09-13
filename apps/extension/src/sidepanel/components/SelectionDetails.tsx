@@ -1,4 +1,5 @@
 import { usePanel } from "../store";
+import { AgentPrompt } from "./AgentPrompt";
 import { SourceSnippet } from "./SourceSnippet";
 import { Field, Section } from "./ui";
 import { VisualControls } from "./VisualControls";
@@ -78,6 +79,9 @@ export function SelectionDetails() {
 
       {context ? (
         <>
+          <Section title="Ask agent">
+            <AgentPrompt />
+          </Section>
           <Section title="Edit">
             <VisualControls />
           </Section>

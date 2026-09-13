@@ -8,18 +8,28 @@ export class ForbiddenPathError extends Error {
 }
 
 const SOURCE_EXTENSIONS = new Set([".tsx", ".jsx", ".ts", ".js", ".mjs", ".cjs", ".mts", ".cts", ".css", ".scss", ".mdx"]);
-const DENIED_SEGMENTS = new Set(["node_modules", ".git", ".hg", ".svn", "dist", ".next", ".uihook"]);
+const DENIED_SEGMENTS = new Set(["node_modules", ".git", ".hg", ".svn", "dist", ".next", ".uihook", ".turbo", "coverage"]);
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 
 /**
  * Confines every file operation to the project root. Paths from the browser are untrusted: they are
  * validated lexically, restricted to source extensions, and checked again after resolving symlinks.
  */
-export class Workspace implements FileAccess {
-  private constructor(readonly root: string) {}
+/**
+ * `source`: browser-facing paths; source extensions only, no dotfiles.
+ * `project`: companion-internal (agent snapshots and undo); any file except VCS, dependencies,
+ * build output and env files. Paths in this mode never originate from the browser.
+ */
+export type WorkspacePolicy = "source" | "project";
 
-  static async open(root: string): Promise<Workspace> {
-    return new Workspace(await realpath(path.resolve(root)));
+export class Workspace implements FileAccess {
+  private constructor(
+    readonly root: string,
+    readonly policy: WorkspacePolicy,
+  ) {}
+
+  static async open(root: string, policy: WorkspacePolicy = "source"): Promise<Workspace> {
+    return new Workspace(await realpath(path.resolve(root)), policy);
   }
 
   /** Validates a project-relative path and returns its absolute location. */
@@ -32,10 +42,13 @@ export class Workspace implements FileAccess {
     }
     const segments = file.split("/");
     if (segments.some((s) => s === ".." || s === "." || s === "")) throw new ForbiddenPathError("path traversal is not allowed");
-    if (segments.some((s) => DENIED_SEGMENTS.has(s) || s.startsWith("."))) {
+    if (segments.some((s) => DENIED_SEGMENTS.has(s) || /^\.env(\..*)?$/.test(s))) {
       throw new ForbiddenPathError(`access to ${file} is not allowed`);
     }
-    if (!SOURCE_EXTENSIONS.has(path.extname(file))) throw new ForbiddenPathError(`${path.extname(file) || "extensionless"} files are not editable`);
+    if (this.policy === "source") {
+      if (segments.some((s) => s.startsWith("."))) throw new ForbiddenPathError(`access to ${file} is not allowed`);
+      if (!SOURCE_EXTENSIONS.has(path.extname(file))) throw new ForbiddenPathError(`${path.extname(file) || "extensionless"} files are not editable`);
+    }
 
     const absolute = path.join(this.root, ...segments);
     this.assertInside(absolute);

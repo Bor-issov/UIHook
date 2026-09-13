@@ -1,5 +1,9 @@
 import { useEffect } from "react";
+import { platform } from "../platform";
+import { ext } from "../platform/ext";
+import { AgentProviders } from "./components/AgentProviders";
 import { ConnectForm } from "./components/ConnectForm";
+import { HostAccess } from "./components/HostAccess";
 import { History } from "./components/History";
 import { SelectionDetails } from "./components/SelectionDetails";
 import { Button } from "./components/ui";
@@ -17,14 +21,14 @@ export function App() {
     const bind = async () => store.bindTab(await resolveTargetTab());
     void bind();
 
-    chrome.storage.local.get("companion").then(({ companion }) => {
+    ext.storage.local.get("companion").then(({ companion }) => {
       const saved = companion as { port?: number; token?: string } | undefined;
       if (saved?.port && saved.token && usePanel.getState().connection.status === "disconnected") void store.connect(saved.port, saved.token);
     });
 
     const pinned = new URLSearchParams(location.search).has("tabId");
     const onActivated = () => void bind();
-    if (!pinned) chrome.tabs.onActivated.addListener(onActivated);
+    if (!pinned) ext.tabs.onActivated.addListener(onActivated);
 
     const unsubscribe = onContentMessage(
       () => usePanel.getState().tabId,
@@ -39,6 +43,10 @@ export function App() {
             return usePanel.setState({ content: { active: message.active, selecting: message.active, hasSelection: state.selection !== null } });
           case "content.action":
             if (message.action === "undo") void state.undo();
+            if (message.action === "askAi") {
+              if (state.selection) state.focusPrompt();
+              else usePanel.setState({ notice: { kind: "info", text: "Select an element first, then ask the agent." } });
+            }
             return;
         }
       },
@@ -46,7 +54,7 @@ export function App() {
 
     return () => {
       unsubscribe();
-      if (!pinned) chrome.tabs.onActivated.removeListener(onActivated);
+      if (!pinned) ext.tabs.onActivated.removeListener(onActivated);
     };
   }, []);
 
@@ -75,18 +83,34 @@ export function App() {
         </div>
       </header>
 
+      <HostAccess />
       {connection.status !== "connected" ? <ConnectForm /> : null}
 
+      {connection.status === "connected" ? <AgentProviders /> : null}
+
       {notice ? (
-        <p data-testid="notice" data-kind={notice.kind} className={`rounded-lg bg-bone/5 p-3 text-xs leading-5 ${notice.kind === "info" ? "text-bone" : "text-signal"}`}>
-          {notice.text}
-        </p>
+        <div data-testid="notice" data-kind={notice.kind} className="flex flex-col gap-2 rounded-lg bg-bone/5 p-3">
+          <p className={`text-xs leading-5 ${notice.kind === "info" ? "text-bone" : "text-signal"}`}>{notice.text}</p>
+          {notice.suggestion ? (
+            <Button
+              onClick={() => {
+                const state = usePanel.getState();
+                state.setDraft(notice.suggestion!);
+                state.focusPrompt();
+              }}
+            >
+              Ask agent instead
+            </Button>
+          ) : null}
+        </div>
       ) : null}
 
       <SelectionDetails />
       <History />
 
-      <footer className="mt-auto text-[11px] text-bone/40">Alt+Shift+S toggles editing. Esc stops selecting.</footer>
+      <footer className="mt-auto text-[11px] text-bone/40">
+        Alt+Shift+S toggles editing. Esc stops selecting.{platform.browser === "firefox" ? " Alt+Shift+U toggles this sidebar." : ""}
+      </footer>
     </div>
   );
 }

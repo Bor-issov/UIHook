@@ -2,6 +2,22 @@
 
 ## Changelog
 
+### [v0.3] 2026-09-13 - Milestone 2: AI agents (branch feat/ai-agents, based on feat/firefox-support)
+- `packages/agent-sdk`: CodingAgent interface; Claude Code, Codex, Gemini CLI adapters; process runner (no shell, env scrubbed of UIHOOK_*, process-group kill).
+- `packages/context-engine`: structured task prompt with untrusted page data fenced.
+- `git-engine`: SnapshotTransaction for agent edits (modified/created/deleted), size limits.
+- Companion: agent registry, provider login manager (CLI login, allowlisted URLs, code input), run manager (single run, cancel, timeout, busy guard), broadcast hub, project workspace policy.
+- Panel: AI provider card with login, Ask agent prompt, run log, cancel, "Ask agent instead" on refused visual edits; toolbar Ask AI enabled.
+- Tests: 108 unit/integration; E2E agent slice in Chromium + Firefox; real Claude and Codex smoke runs verified.
+
+### [v0.2] 2026-09-13 - Firefox support (branch feat/firefox-support)
+- Platform layer: `ext` namespace, Chrome side panel host, Firefox sidebar host.
+- Manifest generator with Chrome/Firefox overrides; `dist/chrome`, `dist/firefox`.
+- Companion: Firefox extension origins, `--extension-origin`, rejection hints.
+- Panel: host-permission grant flow, origin-aware connection errors; page toast when the browser refuses to open the panel.
+- Commands: `dev:chrome`, `dev:firefox`, `build:*`, `package:*`, `e2e`, `e2e:chrome`, `e2e:firefox`, `e2e:setup`.
+- Tests: 82 unit/integration; shared E2E passes in Chromium and Firefox.
+
 ### [v0.1] 2026-09-13 - Milestone 1: visual edit loop (branch feat/visual-edit-loop)
 - Protocol: Zod schemas for extension <-> companion messages, selection, context, visual edits, history.
 - Instrument: Vite plugin injects `data-uihook-src` / `data-uihook-component` in dev only.
@@ -14,7 +30,8 @@
 
 ## Roadmap
 - [x] M1 visual edit loop
-- [ ] M2 Claude Code adapter: context-engine + agent-sdk, `edit.agent.*`, agent transactions via Git change detection
+- [x] Firefox support
+- [x] M2 agents (Claude Code, Codex, Gemini) with provider login: context-engine + agent-sdk, `edit.agent.*`, agent transactions via Git change detection
 - [ ] Area selection
 - [ ] Screenshots for agent tasks
 - [ ] Next.js instrumentation (webpack loader / SWC)

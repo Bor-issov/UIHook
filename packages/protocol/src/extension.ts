@@ -20,5 +20,6 @@ export const PanelToContent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("panel.refreshSelection") }),
   z.object({ type: z.literal("panel.clearSelection") }),
   z.object({ type: z.literal("panel.getMode") }),
+  z.object({ type: z.literal("panel.notify"), text: z.string().max(300) }),
 ]);
 export type PanelToContent = z.infer<typeof PanelToContent>;

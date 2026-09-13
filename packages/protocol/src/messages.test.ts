@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseClientMessage, parseServerMessage, RelativePath } from "./index.js";
+import { isValidExtensionOrigin, parseClientMessage, parseServerMessage, RelativePath } from "./index.js";
 
 const selection = {
   source: { file: "src/App.tsx", line: 12, column: 5 },
@@ -50,5 +50,15 @@ describe("protocol validation", () => {
   it("parses server replies", () => {
     const raw = JSON.stringify({ v: 1, id: "s1", replyTo: "a1", type: "error", payload: { code: "unauthorized", message: "no" } });
     expect(parseServerMessage(raw).ok).toBe(true);
+  });
+});
+
+describe("extension origins", () => {
+  it("accepts exact Chrome and Firefox extension origins only", () => {
+    expect(isValidExtensionOrigin("chrome-extension://dkaiipifgcpinbcifdkfgilclkjdmkom")).toBe(true);
+    expect(isValidExtensionOrigin("moz-extension://9096d939-9e7f-4a10-b2e5-b2437dc0f17d")).toBe(true);
+    for (const bad of ["http://localhost:5173", "moz-extension://*", "chrome-extension://abc", "moz-extension://9096d939-9e7f-4a10-b2e5-b2437dc0f17d/", "null", ""]) {
+      expect(isValidExtensionOrigin(bad), bad).toBe(false);
+    }
   });
 });

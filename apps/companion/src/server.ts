@@ -63,7 +63,10 @@ export async function startServer(services: Services, options: ServerOptions): P
         return done(false, 403, "forbidden host");
       }
       if (!options.allowedOrigins.includes(origin)) {
-        logger.warn("connection.rejected", { reason: "origin", origin });
+        const hint = /^moz-extension:\/\/[0-9a-f-]{36}$/.test(origin)
+          ? `Firefox install with a non-pinned UUID. If this is your UIHook extension, restart the companion with --extension-origin ${origin}`
+          : "not an allowlisted extension origin";
+        logger.warn("connection.rejected", { reason: "origin", origin, hint });
         return done(false, 403, "forbidden origin");
       }
       done(true);
@@ -74,6 +77,7 @@ export async function startServer(services: Services, options: ServerOptions): P
     const connectionId = randomUUID().slice(0, 8);
     logger.info("connection.open", { connection: connectionId, origin: req.headers.origin });
     const helloTimer = setTimeout(() => socket.close(4401, "authentication timeout"), HELLO_TIMEOUT_MS);
+    let removeSink: (() => void) | null = null;
 
     const send = (message: ServerMessage) => {
       if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
@@ -101,6 +105,7 @@ export async function startServer(services: Services, options: ServerOptions): P
         }
         clearTimeout(helloTimer);
         authenticated.add(socket);
+        removeSink = services.hub.add({ send: (raw) => socket.readyState === socket.OPEN && socket.send(raw) });
         logger.info("connection.authenticated", { connection: connectionId, client: message.payload.client });
         return reply(message, "session.ready", { project: services.project, protocol: PROTOCOL_VERSION });
       }
@@ -118,14 +123,7 @@ export async function startServer(services: Services, options: ServerOptions): P
       }
     });
 
-    const broadcastHistory = () => {
-      const sessions = listHistory(services);
-      for (const client of authenticated) {
-        if (client.readyState === client.OPEN) {
-          client.send(JSON.stringify({ v: PROTOCOL_VERSION, id: randomUUID(), type: "history.changed", payload: { sessions } } satisfies ServerMessage));
-        }
-      }
-    };
+    const broadcastHistory = () => services.hub.broadcast("history.changed", { sessions: listHistory(services) });
 
     async function dispatch(message: ClientMessage) {
       logger.debug("request", { connection: connectionId, type: message.type });
@@ -154,10 +152,26 @@ export async function startServer(services: Services, options: ServerOptions): P
           reply(message, "history.state", { sessions });
           return broadcastHistory();
         }
+        case "agent.list":
+          return reply(message, "agent.list.response", { agents: await services.registry.list({ fresh: true }) });
+        case "agent.login.start":
+          return reply(message, "agent.login.started", { agentId: message.payload.agentId, message: services.logins.start(message.payload.agentId) });
+        case "agent.login.input":
+          services.logins.input(message.payload.agentId, message.payload.text);
+          return reply(message, "ok", {});
+        case "agent.login.cancel":
+          services.logins.cancel(message.payload.agentId);
+          return reply(message, "ok", {});
+        case "edit.agent.request":
+          return reply(message, "edit.agent.accepted", await services.runs.start(message.payload));
+        case "edit.agent.cancel":
+          services.runs.cancel(message.payload.runId);
+          return reply(message, "ok", {});
       }
     }
 
     socket.on("close", () => {
+      removeSink?.();
       clearTimeout(helloTimer);
       authenticated.delete(socket);
       logger.info("connection.closed", { connection: connectionId });

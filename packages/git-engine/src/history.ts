@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { FileAccess } from "./file-access.js";
 import type { GitClient } from "./git.js";
+import { type ProjectFileLister, type SnapshotLimits, SnapshotTransaction } from "./snapshot.js";
 import { buildPatch, revertOnto } from "./patch.js";
 import { type EditSession, type EditType, InMemorySessionStore, type SessionStore } from "./session.js";
 
@@ -101,6 +102,11 @@ export class EditHistory {
   async begin(type: EditType, instruction: string): Promise<EditTransaction> {
     const [status, head] = this.git ? await Promise.all([this.git.status(), this.git.head()]) : [null, null];
     return new EditTransaction(this, type, instruction, status, head);
+  }
+
+  /** Snapshot-based transaction for edits whose files are not known in advance. */
+  beginSnapshot(instruction: string, lister: ProjectFileLister, limits?: SnapshotLimits): Promise<SnapshotTransaction> {
+    return SnapshotTransaction.begin(this, lister, instruction, limits);
   }
 
   list(): EditSession[] {

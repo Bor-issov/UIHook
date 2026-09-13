@@ -14,6 +14,7 @@ export function sessionPatch(services: Services, sessionId: string): string {
 }
 
 export async function undoSession(services: Services, sessionId: string): Promise<EditSessionSummary[]> {
+  if (services.runs.active) throw new RequestError("busy", "an agent run is in progress; undo after it finishes");
   return services.mutex.run(async () => {
     try {
       const session = await services.history.undo(sessionId);

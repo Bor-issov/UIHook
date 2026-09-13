@@ -11,7 +11,7 @@ const TOOLBAR: ToolbarItem[] = [
   { action: "select", label: "Select", available: true },
   { action: "area", label: "Area", available: false },
   { action: "inspect", label: "Inspect", available: true },
-  { action: "askAi", label: "Ask AI", available: false },
+  { action: "askAi", label: "Ask AI", available: true },
   { action: "undo", label: "Undo", available: true },
 ];
 
@@ -27,6 +27,7 @@ const STYLES = `
   .label span { opacity: 0.7; margin-left: 6px; }
   .toolbar { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); display: none; gap: 2px; padding: 4px; border-radius: 10px; background: #44423e; color: #ebe7e3; pointer-events: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
   .toolbar.visible { display: flex; }
+  .toast { position: fixed; left: 50%; bottom: 68px; transform: translateX(-50%); display: none; max-width: min(480px, 90vw); padding: 8px 12px; border-radius: 8px; background: #ecf94d; color: #44423e; font: 500 12px/1.4 ui-sans-serif, system-ui, sans-serif; }
   button { all: unset; cursor: pointer; padding: 6px 10px; border-radius: 7px; font: 500 12px/1 ui-sans-serif, system-ui, sans-serif; color: #ebe7e3; }
   button[aria-pressed="true"] { background: #ecf94d; color: #44423e; }
   button[aria-disabled="true"] { opacity: 0.4; cursor: default; }
@@ -43,6 +44,8 @@ export class Overlay {
   private readonly label: HTMLDivElement;
   private readonly toolbar: HTMLDivElement;
   private readonly instanceLayer: HTMLDivElement;
+  private readonly toast: HTMLDivElement;
+  private toastTimer = 0;
   private readonly buttons = new Map<ToolbarAction, HTMLButtonElement>();
 
   constructor(onAction: (action: ToolbarAction) => void) {
@@ -56,6 +59,8 @@ export class Overlay {
     this.selectedBox = div("box selected");
     this.label = div("label");
     this.toolbar = div("toolbar");
+    this.toast = div("toast");
+    this.toast.setAttribute("role", "status");
 
     for (const item of TOOLBAR) {
       const button = document.createElement("button");
@@ -70,7 +75,7 @@ export class Overlay {
       this.toolbar.append(button);
     }
 
-    layer.append(this.instanceLayer, this.hoverBox, this.selectedBox, this.label, this.toolbar);
+    layer.append(this.instanceLayer, this.hoverBox, this.selectedBox, this.label, this.toolbar, this.toast);
     shadow.append(style, layer);
   }
 
@@ -84,6 +89,15 @@ export class Overlay {
 
   setToolbarVisible(visible: boolean) {
     this.toolbar.classList.toggle("visible", visible);
+  }
+
+  /** Short visible message for failures the page user must see (e.g. the browser refused to open the panel). */
+  notify(text: string) {
+    this.mount();
+    this.toast.textContent = text;
+    this.toast.style.display = "block";
+    clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => (this.toast.style.display = "none"), 6000);
   }
 
   setSelecting(selecting: boolean) {

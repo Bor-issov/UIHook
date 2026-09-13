@@ -1,10 +1,11 @@
 import type { ContentToPanel, ElementSelection } from "@uihook/protocol";
 import { collectSelection, describeElement, instancesByKey, instancesOf, instrumentedElement, sourceKey } from "./collect.js";
 import { Overlay, type ToolbarAction } from "./overlay.js";
+import { ext } from "../platform/ext.js";
 
 /**
  * Content script controller. Runs in Chrome's isolated world: page scripts cannot call into it,
- * and it never listens to window.postMessage. It only talks to our own extension via chrome.runtime.
+ * and it never listens to window.postMessage. It only talks to our own extension via the runtime messaging API.
  */
 class VisualLayer {
   private readonly overlay = new Overlay((action) => this.onToolbar(action));
@@ -47,12 +48,14 @@ class VisualLayer {
   setActive(active: boolean) {
     if (active === this.active) return;
     this.active = active;
-    const listen = active ? addEventListener : removeEventListener;
+    // Always call through `window`: unbound EventTarget methods throw inside Firefox content script sandboxes.
+    const listen = (type: string, listener: EventListener) =>
+      active ? window.addEventListener(type, listener, { capture: true }) : window.removeEventListener(type, listener, { capture: true });
     for (const type of ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick", "auxclick", "contextmenu"]) {
-      listen(type, this.intercept, { capture: true });
+      listen(type, this.intercept);
     }
-    listen("pointermove", this.onPointerMove as EventListener, { capture: true });
-    listen("keydown", this.onKeyDown as EventListener, { capture: true });
+    listen("pointermove", this.onPointerMove as EventListener);
+    listen("keydown", this.onKeyDown as EventListener);
 
     if (active) {
       this.overlay.mount();
@@ -140,14 +143,19 @@ class VisualLayer {
         return this.send({ type: "content.action", action: "inspect" });
       case "undo":
         return this.send({ type: "content.action", action: "undo" });
-      case "area":
       case "askAi":
+        this.publish("user");
+        return this.send({ type: "content.action", action: "askAi" });
+      case "area":
         return;
     }
   }
 
-  handlePanelMessage(message: { type?: unknown; active?: unknown }): unknown {
+  handlePanelMessage(message: { type?: unknown; active?: unknown; text?: unknown }): unknown {
     switch (message.type) {
+      case "panel.notify":
+        if (typeof message.text === "string") this.overlay.notify(message.text.slice(0, 300));
+        return this.state();
       case "panel.setMode":
         if (typeof message.active === "boolean") this.setActive(message.active);
         return this.state();
@@ -172,15 +180,22 @@ class VisualLayer {
   }
 
   private send(message: ContentToPanel) {
-    chrome.runtime.sendMessage(message).catch(() => undefined);
+    // Rejects when no panel is open; the page toolbar still works without one.
+    ext.runtime.sendMessage(message).catch(() => undefined);
   }
 }
 
 const layer = new VisualLayer();
+const extensionBase = ext.runtime.getURL("");
 
-chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
-  // Messages to content scripts can only originate from our extension; tab senders are other content scripts.
-  if (sender.id !== chrome.runtime.id || sender.tab || typeof message !== "object" || message === null) return;
-  const response = layer.handlePanelMessage(message as { type?: unknown; active?: unknown });
+function isExtensionDocument(url: string | undefined): boolean {
+  return typeof url === "string" && url.startsWith(extensionBase);
+}
+
+ext.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
+  // Accept only our own extension documents (panel, background). Other content scripts share the ID
+  // but report a web page URL. `sender.tab` is not usable here: Firefox sets it for extension tabs.
+  if (sender.id !== ext.runtime.id || !isExtensionDocument(sender.url) || typeof message !== "object" || message === null) return;
+  const response = layer.handlePanelMessage(message as { type?: unknown; active?: unknown; text?: unknown });
   if (response !== undefined) sendResponse(response);
 });

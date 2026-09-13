@@ -9,6 +9,9 @@ export async function handleVisualEdit(services: Services, payload: ClientPayloa
     return { status: "unsupported", reason: "deterministic edits currently require Tailwind CSS", routeToAgent: true };
   }
   const { source, tag, changes, observed, expectedHash } = payload;
+  if (services.runs.active) throw new RequestError("busy", "an agent run is modifying the project; wait for it to finish");
+  // Browser-supplied path: validate with the source policy before the project-policy transaction reads it.
+  await services.workspace.resolve(source.file);
 
   return services.mutex.run(async () => {
     const tx = await services.history.begin("visual", "");
