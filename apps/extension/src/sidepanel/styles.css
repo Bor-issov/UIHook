@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-charcoal: #44423e;
+  --color-bone: #ebe7e3;
+  --color-signal: #ecf94d;
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", monospace;
+}
+
+html,
+body {
+  @apply bg-charcoal font-sans text-bone antialiased;
+}

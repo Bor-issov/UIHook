@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+  - examples/*
+
+allowBuilds:
+  esbuild: true
+
+minimumReleaseAgeExclude:
+  - zod@4.6.4

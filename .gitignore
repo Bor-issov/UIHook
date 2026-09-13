@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.uihook/
+coverage/
+test-results/
+.e2e-profile/
+.vitest/

@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --color-charcoal: #44423e;
+  --color-charcoal-deep: #3a3935;
+  --color-charcoal-raised: #4f4d48;
+  --color-bone: #ebe7e3;
+  --color-bone-muted: #bdb8b2;
+  --color-signal: #ecf94d;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  @apply bg-charcoal text-bone antialiased;
+}
