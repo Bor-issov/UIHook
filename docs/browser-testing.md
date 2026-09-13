@@ -1,5 +1,7 @@
 # Browser testing workflow
 
+Install and pairing guide: [extension-setup.md](extension-setup.md).
+
 The same product runs in two browser shells. Only the panel host differs:
 
 | | Chrome | Firefox |
