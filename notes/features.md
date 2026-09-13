@@ -51,3 +51,4 @@
 - `apps/companion/src/{cli,app,server}.ts`, `handlers/*`, `project/{workspace,detect}.ts`
 - `apps/extension/src/content/{index,overlay,collect}.ts`, `src/sidepanel/{App,store,companion-client,tab-bridge}.tsx?`, `src/background.ts`
 - `scripts/e2e.mjs`
+- `docs/extension-setup.md` (install + test guide), `docs/browser-testing.md`
